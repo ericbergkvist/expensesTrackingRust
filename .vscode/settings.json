@@ -21,5 +21,13 @@
         "terminal.ansiWhite": "#C5C8C6",
         "terminal.ansiYellow": "#FBA922"
     },
-    "editor.formatOnSave": true
+    "editor.formatOnSave": true,
+    "rust-analyzer.check.command": "clippy",
+    "[rust]": {
+        "editor.defaultFormatter": "rust-lang.rust-analyzer",
+        "editor.formatOnSave": true
+    },
+    "editor.rulers": [
+        100
+    ]
 }
