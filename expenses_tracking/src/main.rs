@@ -1,92 +1,120 @@
 use chrono::NaiveDate;
 use core::f32;
-use csv::StringRecord;
+use std::collections::{HashMap, HashSet};
 use std::error::Error;
 use std::fs::File;
 
-enum TransactionCategory {
-    Nourriture(NourritureTypes),
-    Transports(TransportsTypes),
-}
-
-enum NourritureTypes {
-    Lunch,
-    Courses,
-}
-
-enum TransportsTypes {
-    Train,
-    ZurichPublicTransport,
-}
-
+#[derive(Debug)]
 struct Transaction {
     date: NaiveDate,
     amount: f32,
-    category: TransactionCategory,
-    name: String,
+    category: String,
+    subcategory: String,
+    tag: String,
     note: String,
 }
 
 impl Transaction {
-    fn default() -> Transaction {
+    fn new() -> Transaction {
         Transaction {
             date: NaiveDate::default(),
             amount: 0.,
-            category: TransactionCategory::Nourriture(NourritureTypes::Lunch),
-            name: "".to_string(),
-            note: "".to_string(),
+            category: String::new(),
+            subcategory: String::new(),
+            tag: String::new(),
+            note: String::new(),
         }
     }
 }
 
-fn parse_transaction(csv_line: StringRecord) -> Result<Transaction, Box<dyn Error>> {
-    // Create a default transaction
-    let mut transaction = Transaction::default();
+#[derive(Debug)]
+struct ExpenseTracker {
+    valid_categories: HashSet<String>,
+    valid_subcategories: HashMap<String, HashSet<String>>,
+    transactions: Vec<Transaction>,
+}
 
-    // Read all the relevant values in the CSV line
-    let date_str = csv_line.get(0).ok_or("Date not found in the record")?;
-    let mut amount_out_str: String = csv_line
-        .get(1)
-        .ok_or("Amount out not found in the record")?
-        .to_string();
-    let mut amount_in_str: String = csv_line
-        .get(2)
-        .ok_or("Amount in not found in the record")?
-        .to_string();
-    let category_str = csv_line.get(3).ok_or("Category not found in the record")?;
-    let type_str = csv_line.get(4).ok_or("Type not found in the record")?;
-    let name_str = csv_line.get(5).ok_or("Name not found in the record")?;
-    let note_str = csv_line.get(6).ok_or("Note not found in the record")?;
-
-    // Parse the strings
-    let date = chrono::NaiveDate::parse_from_str(date_str, "%d.%m.%Y")?;
-
-    let mut amount_out: f32 = 0.0;
-    let mut amount_in: f32 = 0.0;
-
-    if !amount_out_str.is_empty() {
-        if amount_out_str.contains('\'') {
-            amount_out_str = amount_out_str.replace('\'', "");
+impl ExpenseTracker {
+    fn new() -> Self {
+        ExpenseTracker {
+            valid_categories: HashSet::new(),
+            valid_subcategories: HashMap::new(),
+            transactions: Vec::new(),
         }
-        amount_out = amount_out_str.parse()?;
-    }
-    if !amount_in_str.is_empty() {
-        if amount_in_str.contains('\'') {
-            amount_in_str = amount_in_str.replace('\'', "");
-        }
-        amount_in = amount_in_str.parse()?;
     }
 
-    // Create a Transaction entry and return it using a Result() to propagate error handling to the
-    // main()
-    transaction.date = date;
-    transaction.amount = amount_in - amount_out;
-    Ok(transaction)
+    fn add_category(&mut self, transaction_category: &str) {
+        self.valid_categories
+            .insert(transaction_category.to_string());
+    }
+
+    fn add_subcategory(&mut self, transaction_category: &str, transaction_subcategory: &str) {
+        let subcategories = self
+            .valid_subcategories
+            .entry(transaction_category.to_string())
+            .or_insert(HashSet::new());
+        subcategories.insert(transaction_subcategory.to_string());
+    }
+
+    fn add_transaction(
+        &mut self,
+        date: &str,
+        amount_out: &str,
+        amount_in: &str,
+        category: &str,
+        subcategory: &str,
+        tag: &str,
+        note: &str,
+    ) -> Result<(), Box<dyn Error>> {
+        if !self.valid_categories.contains(category) {
+            return Err("Invalid category".into());
+        }
+
+        if !self
+            .valid_subcategories
+            .get(category)
+            .map_or(false, |subcategories| subcategories.contains(subcategory))
+        {
+            return Err("Invalid sub-category (not linked to category)".into());
+        }
+
+        let transaction_date = chrono::NaiveDate::parse_from_str(date, "%d.%m.%Y")?;
+
+        let mut amount_out_numeric: f32 = 0.0;
+        let mut amount_in_numeric: f32 = 0.0;
+
+        if !amount_out.is_empty() {
+            let mut amount_out_string: String = amount_out.to_string();
+            if amount_out.contains('\'') {
+                amount_out_string = amount_out.replace('\'', "");
+            }
+            amount_out_numeric = amount_out_string.parse()?;
+        }
+        if !amount_in.is_empty() {
+            let mut amount_in_string: String = amount_in.to_string();
+            if amount_in.contains('\'') {
+                amount_in_string = amount_in.replace('\'', "");
+            }
+            amount_in_numeric = amount_in_string.parse()?;
+        }
+
+        let transaction = Transaction {
+            date: transaction_date,
+            amount: amount_in_numeric - amount_out_numeric,
+            category: category.to_string(),
+            subcategory: subcategory.to_string(),
+            tag: tag.to_string(),
+            note: note.to_string(),
+        };
+
+        self.transactions.push(transaction);
+        Ok(())
+    }
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
     // Specify the path to your CSV file
-    let file_path = "/Users/eric/Desktop/transactions.csv";
+    let file_path = "/home/ericbergkvist/personal/expensesTrackingRust/transactions.csv";
 
     // Open the CSV file
     // If it errors, the main will directly return an Err that is handled by the fact that the main
@@ -107,37 +135,53 @@ fn main() -> Result<(), Box<dyn Error>> {
         eprintln!("CSV file does not have a header row.");
     }
 
-    let mut transactions: Vec<Transaction> = Vec::new();
     let mut n_lines: i32 = 0;
+    let mut n_ignored_transactions: i32 = 0;
+
+    let mut expense_tracker = ExpenseTracker::new();
+    expense_tracker.add_category("Nourriture");
+    expense_tracker.add_subcategory("Nourriture", "Courses");
+    expense_tracker.add_subcategory("Nourriture", "Restaurant");
 
     // Iterate over each record in the CSV file
     for result in rdr.records() {
         // Handle each CSV record
         let csv_line = result?;
 
-        // Only push valid transactions to the list of transactions
-        if let Ok(transaction) = parse_transaction(csv_line) {
-            transactions.push(transaction);
-        }
+        // Read all the relevant values in the CSV line
+        let date_str = csv_line.get(0).ok_or("Date not found in the record")?;
+        let amount_out_str = csv_line
+            .get(1)
+            .ok_or("Amount out not found in the record")?;
+        let amount_in_str = csv_line.get(2).ok_or("Amount in not found in the record")?;
+        let category_str = csv_line.get(3).ok_or("Category not found in the record")?;
+        let subcategory_str = csv_line
+            .get(4)
+            .ok_or("Sub-category not found in the record")?;
+        let tag_str = csv_line.get(5).ok_or("Tag not found in the record")?;
+        let note_str = csv_line.get(6).ok_or("Note not found in the record")?;
 
-        /*
-        // The date is in the first column
-        if let Some(date_str) = transaction.get(0) {
-            // Parse the date using chrono
-            if let Ok(date) = chrono::NaiveDate::parse_from_str(date_str, "%d.%m.%Y") {
-                // Use the parsed date as needed
-                println!("Parsed date: {:?}", date);
-            } else {
-                eprintln!("Error parsing date: {}", date_str);
+        match expense_tracker.add_transaction(
+            date_str,
+            amount_out_str,
+            amount_in_str,
+            category_str,
+            subcategory_str,
+            tag_str,
+            note_str,
+        ) {
+            Ok(_) => (),
+            Err(e) => {
+                println!("{}", e);
+                n_ignored_transactions += 1;
             }
-        } else {
-            eprintln!("No date found in the record");
-        }
-        */
+        };
+
         n_lines += 1;
     }
 
-    let sum_transactions: f32 = transactions
+    let sum_transactions: f32 = expense_tracker
+        .transactions
         .iter()
         .map(|transaction| transaction.amount)
         .sum();
@@ -149,8 +193,11 @@ fn main() -> Result<(), Box<dyn Error>> {
     );
     println!(
         "Number of valid transactions extracted from the CSV: {}",
-        transactions.len()
+        expense_tracker.transactions.len()
     );
+    println!("Number of transactions ignored: {}", n_ignored_transactions);
+
+    println!("{:?}", expense_tracker);
 
     Ok(())
 }
