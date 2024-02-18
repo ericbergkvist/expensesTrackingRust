@@ -4,6 +4,7 @@ use csv::StringRecord;
 use std::collections::{HashMap, HashSet};
 use std::error::Error;
 
+/// A struct that represents a transaction
 #[derive(Debug, PartialEq, Clone)]
 pub struct Transaction {
     pub date: NaiveDate,
@@ -86,4 +87,16 @@ fn parse_amount(amount: &str) -> Result<f32, Box<dyn Error>> {
     }
 
     Ok(numeric_amount)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[should_panic]
+    fn read_empty_line() {
+        let empty_line = StringRecord::new();
+        Transaction::from_csv_row(empty_line).unwrap();
+    }
 }
