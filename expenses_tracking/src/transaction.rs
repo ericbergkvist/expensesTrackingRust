@@ -1,7 +1,7 @@
 use chrono::NaiveDate;
 use core::f32;
 use csv::StringRecord;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 
 /// A struct that represents a transaction
@@ -49,14 +49,14 @@ impl Transaction {
     }
 
     /// Checks if the transaction's category is part of a set of valid categories
-    pub fn is_category_valid(&self, valid_categories: &HashSet<String>) -> bool {
+    pub fn is_category_valid(&self, valid_categories: &BTreeSet<String>) -> bool {
         valid_categories.contains(&self.category)
     }
 
     /// Checks if the transaction's sub-category is part of valid sub-categories
     pub fn is_subcategory_valid(
         &self,
-        valid_subcategories: &HashMap<String, HashSet<String>>,
+        valid_subcategories: &BTreeMap<String, BTreeSet<String>>,
     ) -> bool {
         match &self.subcategory {
             None => {

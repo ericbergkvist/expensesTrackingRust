@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 
 use serde::{Deserialize, Serialize};
@@ -9,8 +9,8 @@ use crate::transaction::Transaction;
 /// A struct that deals with expense tracking
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ExpenseTracker {
-    pub valid_categories: HashSet<String>,
-    pub valid_subcategories: HashMap<String, HashSet<String>>,
+    pub valid_categories: BTreeSet<String>,
+    pub valid_subcategories: BTreeMap<String, BTreeSet<String>>,
     #[serde(skip_serializing)]
     #[serde(skip_deserializing)]
     pub transactions: Vec<Transaction>,
@@ -19,8 +19,8 @@ pub struct ExpenseTracker {
 impl ExpenseTracker {
     pub fn new() -> Self {
         ExpenseTracker {
-            valid_categories: HashSet::new(),
-            valid_subcategories: HashMap::new(),
+            valid_categories: BTreeSet::new(),
+            valid_subcategories: BTreeMap::new(),
             transactions: Vec::new(),
         }
     }
@@ -44,7 +44,7 @@ impl ExpenseTracker {
         let subcategories = self
             .valid_subcategories
             .entry(transaction_category.to_string())
-            .or_insert(HashSet::new());
+            .or_insert(BTreeSet::new());
         subcategories.insert(transaction_subcategory.to_string());
 
         Ok(())
