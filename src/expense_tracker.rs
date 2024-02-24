@@ -1,3 +1,4 @@
+use log::{debug, error, info};
 use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 
@@ -91,7 +92,7 @@ impl ExpenseTracker {
             let header_list: Vec<String> = header.iter().map(|entry| entry.to_string()).collect();
 
             // Print the resulting Vec<String>
-            println!("{:?}", header_list);
+            info!("{:?}", header_list);
         } else {
             eprintln!("CSV file does not have a header row.");
         }
@@ -128,11 +129,11 @@ impl ExpenseTracker {
         }
 
         if verbose {
-            println!(
+            info!(
                 "Number of valid transactions extracted from the CSV: {}",
                 self.transactions.len()
             );
-            println!("Number of transactions ignored: {}", n_ignored_transactions);
+            info!("Number of transactions ignored: {}", n_ignored_transactions);
         }
 
         Ok(())
