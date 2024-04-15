@@ -1,7 +1,8 @@
 use chrono::NaiveDate;
 use core::f32;
 use csv::StringRecord;
-use std::collections::{BTreeMap, BTreeSet};
+use serde::{Deserialize, Serialize};
+use std::collections::BTreeSet;
 use std::error::Error;
 
 /// A struct that represents a transaction
@@ -9,8 +10,8 @@ use std::error::Error;
 pub struct Transaction {
     pub date: NaiveDate,
     pub amount: f32,
-    pub category: String,
-    pub subcategory: Option<String>,
+    pub category_name: String,
+    pub subcategory_name: Option<String>,
     pub tag: Option<String>,
     pub note: Option<String>,
 }
@@ -39,8 +40,8 @@ impl Transaction {
         let transaction = Transaction {
             date: formatted_date,
             amount: parsed_amount_in - parsed_amount_out,
-            category: category.to_string(),
-            subcategory: formatted_subcategory,
+            category_name: category.to_string(),
+            subcategory_name: formatted_subcategory,
             tag: formatted_tag,
             note: formatted_note,
         };
@@ -48,31 +49,80 @@ impl Transaction {
         Ok(transaction)
     }
 
-    /// Checks if the transaction's category is part of a set of valid categories
-    pub fn is_category_valid(&self, valid_categories: &BTreeSet<String>) -> bool {
-        valid_categories.contains(&self.category)
+    fn to_csv_row() {
+        todo!();
     }
+}
 
-    /// Checks if the transaction's sub-category is part of valid sub-categories
-    pub fn is_subcategory_valid(
-        &self,
-        valid_subcategories: &BTreeMap<String, BTreeSet<String>>,
-    ) -> bool {
-        match &self.subcategory {
-            None => {
-                // The None sub-category is valid as long as its associated category doesn't have
-                // sub-categories (and the associated category is valid, which needs to be checked
-                // separately)
-                !valid_subcategories.contains_key(&self.category)
-            }
-            Some(subcategory) => {
-                // The sub-category is valid as long as it's associated with its category in the
-                // set of valid sub-categories
-                valid_subcategories
-                    .get(&self.category)
-                    .map_or(false, |subcategories| subcategories.contains(subcategory))
-            }
+#[derive(Debug, Clone, Serialize, Deserialize, Ord, PartialOrd)]
+pub struct Category {
+    pub name: String,
+    pub subcategories: BTreeSet<SubCategory>,
+    pub date_added: NaiveDate,
+}
+
+// For convenience, we compare `Category` simply by their name
+impl PartialEq for Category {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+    }
+}
+
+impl Eq for Category {}
+
+impl Category {
+    /// Creates a default `Category` object from a name.
+    fn from_name(name: &str) -> Category {
+        Category {
+            name: name.to_lowercase(),
+            date_added: NaiveDate::default(),
+            subcategories: BTreeSet::new(),
         }
+    }
+}
+pub trait AsCategory {
+    fn as_category(self) -> Category;
+}
+
+// For convenience we add a trait to `&str` objects such that they can be used to create default
+// `Category` objects easily
+impl AsCategory for &str {
+    fn as_category(self) -> Category {
+        Category::from_name(self)
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, Ord, PartialOrd)]
+pub struct SubCategory {
+    pub name: String,
+    pub date_added: NaiveDate,
+}
+
+impl PartialEq for SubCategory {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+    }
+}
+
+impl Eq for SubCategory {}
+
+impl SubCategory {
+    /// Creates a default `SubCategory` object from a name.
+    fn from_name(name: &str) -> SubCategory {
+        SubCategory {
+            name: name.to_lowercase(),
+            date_added: NaiveDate::default(),
+        }
+    }
+}
+
+pub trait AsSubCategory {
+    fn as_subcategory(self) -> SubCategory;
+}
+
+impl AsSubCategory for &str {
+    fn as_subcategory(self) -> SubCategory {
+        SubCategory::from_name(self)
     }
 }
 
