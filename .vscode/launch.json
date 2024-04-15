@@ -1,0 +1,20 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "type": "gbd",
+            "request": "launch",
+            "name": "Cargo launch",
+            "cargo": {
+                "args": [
+                    "run",
+                    "--bin=expenses_tracking"
+                ]
+            },
+            "args": [],
+            "env": {
+                "RUST_LOG": "error"
+            }
+        }
+    ]
+}
