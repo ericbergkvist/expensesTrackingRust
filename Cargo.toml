@@ -2,6 +2,15 @@
 name = "expenses_tracking"
 version = "0.1.0"
 edition = "2021"
+default-run = "expenses_tracking"
+
+[[bin]]
+name = "expenses_gui"
+path = "gui/main.rs"
+
+[[bin]]
+name = "expenses_tracking"
+path = "src/main.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -13,3 +22,5 @@ serde_json = "1"
 env_logger = "0.9"
 log = "0.4"
 tempdir = "0.3"
+
+eframe = { version = "0.27.2" }
