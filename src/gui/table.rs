@@ -21,6 +21,8 @@ pub trait Demo {
     fn show(&mut self, ctx: &eframe::egui::Context, open: &mut bool);
 }
 
+
+
 #[derive(PartialEq)]
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
 enum DemoType {
@@ -61,7 +63,7 @@ impl Default for TableDemo {
 
 impl Demo for TableDemo {
     fn name(&self) -> &'static str {
-        "☰ Table"
+        "☰ Transactions"
     }
 
     fn show(&mut self, ctx: &eframe::egui::Context, open: &mut bool) {
@@ -136,16 +138,10 @@ impl View for TableDemo {
         use egui_extras::{Size, StripBuilder};
         StripBuilder::new(ui)
             .size(Size::remainder().at_least(100.0)) // for the table
-            .size(Size::exact(body_text_size)) // for the source code link
             .vertical(|mut strip| {
                 strip.cell(|ui| {
                     eframe::egui::ScrollArea::horizontal().show(ui, |ui| {
                         self.table_ui(ui, reset);
-                    });
-                });
-                strip.cell(|ui| {
-                    ui.vertical_centered(|ui| {
-                        ui.add(crate::egui_github_link_file!());
                     });
                 });
             });
@@ -325,18 +321,4 @@ fn long_text(row_index: usize) -> String {
 
 fn thick_row(row_index: usize) -> bool {
     row_index % 6 == 0
-}
-
-/// Create a [`Hyperlink`](egui::Hyperlink) to this egui source code file on github.
-#[macro_export]
-macro_rules! egui_github_link_file {
-    () => {
-        $crate::egui_github_link_file!("(source code)")
-    };
-    ($label: expr) => {
-        eframe::egui::github_link_file!(
-            "https://github.com/emilk/egui/blob/master/",
-            eframe::egui::RichText::new($label).small()
-        )
-    };
 }
