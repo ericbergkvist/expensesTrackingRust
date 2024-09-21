@@ -6,11 +6,11 @@ default-run = "expenses_tracking"
 
 [[bin]]
 name = "expenses_gui"
-path = "gui/main.rs"
+path = "src/gui/main.rs"
 
 [[bin]]
 name = "expenses_tracking"
-path = "src/main.rs"
+path = "src/expenses_tracking/main.rs"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 

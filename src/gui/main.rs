@@ -2,10 +2,12 @@
 
 use eframe::egui;
 
+use expenses_tracking::expense_tracker::ExpenseTracker;
+
 fn main() -> Result<(), eframe::Error> {
     env_logger::init(); // Log to stderr (if you run with `RUST_LOG=debug`).
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([320.0, 240.0]),
+        viewport: egui::ViewportBuilder::default().with_inner_size([640.0, 480.0]),
         ..Default::default()
     };
     eframe::run_native(
@@ -16,6 +18,7 @@ fn main() -> Result<(), eframe::Error> {
 }
 
 struct ExpensesTrackingGUI {
+    expenses_tracker: ExpenseTracker,
     name: String,
     age: u32,
 }
@@ -23,6 +26,7 @@ struct ExpensesTrackingGUI {
 impl Default for ExpensesTrackingGUI {
     fn default() -> Self {
         Self {
+            expenses_tracker: ExpenseTracker::new(),
             name: "Arthur".to_owned(),
             age: 42,
         }
@@ -34,6 +38,7 @@ impl eframe::App for ExpensesTrackingGUI {
         let name_before_update = self.name.clone();
 
         egui::CentralPanel::default().show(ctx, |ui| {
+            //ui.label("Text is rendered here");
             ui.heading("Expenses Tracking GUI");
             ui.horizontal(|ui| {
                 let name_label = ui.label("Your name: ");
