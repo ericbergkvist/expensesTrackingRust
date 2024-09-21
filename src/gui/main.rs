@@ -3,17 +3,20 @@
 use eframe::egui;
 
 use expenses_tracking::expense_tracker::ExpenseTracker;
+mod table;
+
+use table::{Demo, TableDemo, View};
 
 fn main() -> Result<(), eframe::Error> {
     env_logger::init(); // Log to stderr (if you run with `RUST_LOG=debug`).
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([640.0, 480.0]),
+        viewport: egui::ViewportBuilder::default().with_inner_size([1280.0, 1024.0]),
         ..Default::default()
     };
     eframe::run_native(
         "Expenses Tracking GUI",
         options,
-        Box::new(|_cc| Box::<ExpensesTrackingGUI>::default()),
+        Box::new(|_cc| Ok(Box::<TableDemoWindow>::default())),
     )
 }
 
@@ -30,6 +33,27 @@ impl Default for ExpensesTrackingGUI {
             name: "Arthur".to_owned(),
             age: 42,
         }
+    }
+}
+
+struct TableDemoWindow {
+    is_open: bool,
+    demo: TableDemo,
+}
+
+impl Default for TableDemoWindow {
+    fn default() -> Self {
+        Self {
+            is_open: true,
+            demo: Default::default(),
+        }
+    }
+}
+
+impl eframe::App for TableDemoWindow {
+    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        //self.ui(ctx);
+        self.demo.show(ctx, &mut self.is_open);
     }
 }
 
