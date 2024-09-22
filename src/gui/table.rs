@@ -1,6 +1,10 @@
 // Based on https://github.com/emilk/egui/blob/master/crates/egui_demo_lib/src/demo/table_demo.rs
 
-use eframe::egui::{TextStyle, TextWrapMode};
+use expenses_tracking::{expense_tracker::ExpenseTracker, transaction::Transaction};
+
+use std::{path::PathBuf, str::FromStr};
+
+use log::debug;
 
 /// Something to view in the demo windows
 pub trait View {
@@ -21,47 +25,25 @@ pub trait Demo {
     fn show(&mut self, ctx: &eframe::egui::Context, open: &mut bool);
 }
 
-
-
-#[derive(PartialEq)]
-#[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
-enum DemoType {
-    Manual,
-    ManyHomogeneous,
-    ManyHeterogenous,
-}
-
 /// Shows off a table with dynamic layout
 #[cfg_attr(feature = "serde", derive(serde::Deserialize, serde::Serialize))]
-pub struct TableDemo {
-    demo: DemoType,
+pub struct TransactionTable {
     striped: bool,
     resizable: bool,
-    clickable: bool,
-    num_rows: usize,
-    scroll_to_row_slider: usize,
-    scroll_to_row: Option<usize>,
-    selection: std::collections::HashSet<usize>,
-    checked: bool,
+    transactions: Vec<Transaction>,
 }
 
-impl Default for TableDemo {
+impl Default for TransactionTable {
     fn default() -> Self {
         Self {
-            demo: DemoType::Manual,
             striped: true,
             resizable: true,
-            clickable: true,
-            num_rows: 10_000,
-            scroll_to_row_slider: 0,
-            scroll_to_row: None,
-            selection: Default::default(),
-            checked: false,
+            transactions: Vec::new(),
         }
     }
 }
 
-impl Demo for TableDemo {
+impl Demo for TransactionTable {
     fn name(&self) -> &'static str {
         "☰ Transactions"
     }
@@ -77,64 +59,38 @@ impl Demo for TableDemo {
     }
 }
 
-const NUM_MANUAL_ROWS: usize = 20;
-
-impl View for TableDemo {
+impl View for TransactionTable {
     fn ui(&mut self, ui: &mut eframe::egui::Ui) {
         let mut reset = false;
+        let mut load_transactions = false;
 
         ui.vertical(|ui| {
             ui.horizontal(|ui| {
                 ui.checkbox(&mut self.striped, "Striped");
                 ui.checkbox(&mut self.resizable, "Resizable columns");
-                ui.checkbox(&mut self.clickable, "Clickable rows");
             });
-
-            ui.label("Table type:");
-            ui.radio_value(&mut self.demo, DemoType::Manual, "Few, manual rows");
-            ui.radio_value(
-                &mut self.demo,
-                DemoType::ManyHomogeneous,
-                "Thousands of rows of same height",
-            );
-            ui.radio_value(
-                &mut self.demo,
-                DemoType::ManyHeterogenous,
-                "Thousands of rows of differing heights",
-            );
-
-            if self.demo != DemoType::Manual {
-                ui.add(
-                    eframe::egui::Slider::new(&mut self.num_rows, 0..=100_000)
-                        .logarithmic(true)
-                        .text("Num rows"),
-                );
-            }
-
-            {
-                let max_rows = if self.demo == DemoType::Manual {
-                    NUM_MANUAL_ROWS
-                } else {
-                    self.num_rows
-                };
-
-                let slider_response = ui.add(
-                    eframe::egui::Slider::new(&mut self.scroll_to_row_slider, 0..=max_rows)
-                        .logarithmic(true)
-                        .text("Row to scroll to"),
-                );
-                if slider_response.changed() {
-                    self.scroll_to_row = Some(self.scroll_to_row_slider);
-                }
-            }
-
             reset = ui.button("Reset").clicked();
+            load_transactions = ui.button("Load transactions").clicked();
         });
+
+        if load_transactions {
+            let transactions_file_path =
+                PathBuf::from_str("/Users/eric/Desktop/transactions_short.csv")
+                    .map_err(|e| {
+                        format!("Failed to convert path of input transactions CSV file: {e}")
+                    })
+                    .unwrap();
+
+            let mut expense_tracker = ExpenseTracker::new();
+            expense_tracker
+                .load_transactions_from_file(&transactions_file_path, true)
+                .unwrap();
+
+            self.transactions = expense_tracker.transactions;
+        }
 
         ui.separator();
 
-        // Leave room for the source code link after the table demo:
-        let body_text_size = TextStyle::Body.resolve(ui.style()).size;
         use egui_extras::{Size, StripBuilder};
         StripBuilder::new(ui)
             .size(Size::remainder().at_least(100.0)) // for the table
@@ -148,7 +104,7 @@ impl View for TableDemo {
     }
 }
 
-impl TableDemo {
+impl TransactionTable {
     fn table_ui(&mut self, ui: &mut eframe::egui::Ui, reset: bool) {
         use egui_extras::{Column, TableBuilder};
 
@@ -165,25 +121,20 @@ impl TableDemo {
                 eframe::egui::Align::Center,
             ))
             .column(Column::auto())
+            .column(Column::auto())
+            .column(Column::auto())
+            .column(Column::auto())
+            .column(Column::auto())
+            .column(Column::auto())
+            .column(Column::auto())
             .column(
                 Column::remainder()
                     .at_least(40.0)
                     .clip(true)
                     .resizable(true),
             )
-            .column(Column::auto())
-            .column(Column::remainder())
-            .column(Column::remainder())
             .min_scrolled_height(0.0)
             .max_scroll_height(available_height);
-
-        if self.clickable {
-            table = table.sense(eframe::egui::Sense::click());
-        }
-
-        if let Some(row_index) = self.scroll_to_row.take() {
-            table = table.scroll_to_row(row_index, None);
-        }
 
         if reset {
             table.reset();
@@ -192,133 +143,79 @@ impl TableDemo {
         table
             .header(20.0, |mut header| {
                 header.col(|ui| {
-                    ui.strong("Row");
+                    ui.strong("ID");
                 });
                 header.col(|ui| {
-                    ui.strong("Clipped text");
+                    ui.strong("Date");
                 });
                 header.col(|ui| {
-                    ui.strong("Expanding content");
+                    ui.strong("Amount paid");
                 });
                 header.col(|ui| {
-                    ui.strong("Interaction");
+                    ui.strong("Amount received");
                 });
                 header.col(|ui| {
-                    ui.strong("Content");
+                    ui.strong("Category");
+                });
+                header.col(|ui| {
+                    ui.strong("Sub-category");
+                });
+                header.col(|ui| {
+                    ui.strong("Tag");
+                });
+                header.col(|ui| {
+                    ui.strong("Note");
                 });
             })
-            .body(|mut body| match self.demo {
-                DemoType::Manual => {
-                    for row_index in 0..NUM_MANUAL_ROWS {
-                        let is_thick = thick_row(row_index);
-                        let row_height = if is_thick { 30.0 } else { 18.0 };
-                        body.row(row_height, |mut row| {
-                            row.set_selected(self.selection.contains(&row_index));
-
-                            row.col(|ui| {
-                                ui.label(row_index.to_string());
-                            });
-                            row.col(|ui| {
-                                ui.label(long_text(row_index));
-                            });
-                            row.col(|ui| {
-                                expanding_content(ui);
-                            });
-                            row.col(|ui| {
-                                ui.checkbox(&mut self.checked, "Click me");
-                            });
-                            row.col(|ui| {
-                                ui.style_mut().wrap_mode = Some(eframe::egui::TextWrapMode::Extend);
-                                if is_thick {
-                                    ui.heading("Extra thick row");
-                                } else {
-                                    ui.label("Normal row");
-                                }
-                            });
-
-                            self.toggle_row_selection(row_index, &row.response());
-                        });
+            .body(|body| {
+                body.rows(text_height, self.transactions.len(), |mut row| {
+                    let row_index = row.index();
+                    let transaction = &self.transactions[row_index];
+                    let amount = transaction.amount;
+                    let (mut amount_in, mut amount_out) = (0.0, 0.0);
+                    if amount > 0.0 {
+                        amount_in = amount;
+                    } else {
+                        amount_out = -amount;
                     }
-                }
-                DemoType::ManyHomogeneous => {
-                    body.rows(text_height, self.num_rows, |mut row| {
-                        let row_index = row.index();
-                        row.set_selected(self.selection.contains(&row_index));
 
-                        row.col(|ui| {
-                            ui.label(row_index.to_string());
-                        });
-                        row.col(|ui| {
-                            ui.label(long_text(row_index));
-                        });
-                        row.col(|ui| {
-                            expanding_content(ui);
-                        });
-                        row.col(|ui| {
-                            ui.checkbox(&mut self.checked, "Click me");
-                        });
-                        row.col(|ui| {
-                            ui.add(
-                                eframe::egui::Label::new("Thousands of rows of even height")
-                                    .wrap_mode(TextWrapMode::Extend),
-                            );
-                        });
-
-                        self.toggle_row_selection(row_index, &row.response());
+                    row.col(|ui| {
+                        ui.label(row_index.to_string());
                     });
-                }
-                DemoType::ManyHeterogenous => {
-                    let row_height = |i: usize| if thick_row(i) { 30.0 } else { 18.0 };
-                    body.heterogeneous_rows((0..self.num_rows).map(row_height), |mut row| {
-                        let row_index = row.index();
-                        row.set_selected(self.selection.contains(&row_index));
-
-                        row.col(|ui| {
-                            ui.label(row_index.to_string());
-                        });
-                        row.col(|ui| {
-                            ui.label(long_text(row_index));
-                        });
-                        row.col(|ui| {
-                            expanding_content(ui);
-                        });
-                        row.col(|ui| {
-                            ui.checkbox(&mut self.checked, "Click me");
-                        });
-                        row.col(|ui| {
-                            ui.style_mut().wrap_mode = Some(eframe::egui::TextWrapMode::Extend);
-                            if thick_row(row_index) {
-                                ui.heading("Extra thick row");
-                            } else {
-                                ui.label("Normal row");
-                            }
-                        });
-
-                        self.toggle_row_selection(row_index, &row.response());
+                    row.col(|ui| {
+                        ui.label(transaction.date.to_string());
                     });
-                }
-            });
+                    row.col(|ui| {
+                        ui.label(amount_out.to_string());
+                    });
+                    row.col(|ui| {
+                        ui.label(amount_in.to_string());
+                    });
+                    row.col(|ui| {
+                        ui.label(transaction.category_name.as_str());
+                    });
+                    row.col(|ui| {
+                        if let Some(subcategory_name) = &transaction.subcategory_name {
+                            ui.label(subcategory_name.as_str());
+                        } else {
+                            ui.label("");
+                        }
+                    });
+                    row.col(|ui| {
+                        if let Some(tag) = &transaction.tag {
+                            ui.label(tag.as_str());
+                        } else {
+                            ui.label("");
+                        }
+                    });
+                    row.col(|ui| {
+                        if let Some(note) = &transaction.note {
+                            ui.label(note.as_str());
+                        } else {
+                            ui.label("");
+                        }
+                    });
+                })
+            })
     }
-
-    fn toggle_row_selection(&mut self, row_index: usize, row_response: &eframe::egui::Response) {
-        if row_response.clicked() {
-            if self.selection.contains(&row_index) {
-                self.selection.remove(&row_index);
-            } else {
-                self.selection.insert(row_index);
-            }
-        }
-    }
-}
-
-fn expanding_content(ui: &mut eframe::egui::Ui) {
-    ui.add(eframe::egui::Separator::default().horizontal());
-}
-
-fn long_text(row_index: usize) -> String {
-    format!("Row {row_index} has some long text that you may want to clip, or it will take up too much horizontal space!")
-}
-
-fn thick_row(row_index: usize) -> bool {
-    row_index % 6 == 0
 }

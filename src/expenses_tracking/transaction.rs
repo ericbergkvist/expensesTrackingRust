@@ -17,7 +17,7 @@ pub struct Transaction {
 }
 
 impl Transaction {
-    // Creates a transaction from a CSV row
+    /// Creates a transaction from a CSV row.
     pub fn from_csv_row(csv_row: StringRecord) -> Result<Transaction, Box<dyn Error>> {
         // Read all the relevant values in the CSV line
         let date = csv_row.get(0).ok_or("Date not found in the record")?;

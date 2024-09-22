@@ -8,7 +8,7 @@ use std::fs::{File, OpenOptions};
 
 use crate::transaction::{AsSubCategory, Category, SubCategory, Transaction};
 
-/// A struct that deals with expense tracking
+/// A struct that deals with expense tracking.
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ExpenseTracker {
     pub valid_categories: BTreeSet<Category>,
@@ -26,14 +26,14 @@ impl ExpenseTracker {
         }
     }
 
-    /// Returns an `Option` which contains a reference to a `Category` if it matches the argument
+    /// Returns an `Option` which contains a reference to a `Category` if it matches the argument.
     pub fn get_category(&self, category_name: &str) -> Option<&Category> {
         self.valid_categories
             .iter()
             .find(|category| category.name == category_name.to_lowercase())
     }
 
-    /// Returns an `Option` which contains a reference to a `SubCategory` if it matches the argument
+    /// Returns an `Option` which contains a reference to a `SubCategory` if it matches the argument.
     pub fn get_subcategory(
         &self,
         subcategory_name: &str,
@@ -75,7 +75,7 @@ impl ExpenseTracker {
     }
 
     /// Adds a valid sub-category associated with a category if it doesn't exist yet and if the
-    /// category is valid
+    /// category is valid.
     pub fn add_subcategory(
         &mut self,
         category_name: &str,
@@ -167,7 +167,7 @@ impl ExpenseTracker {
         }
     }
 
-    /// Adds a given transaction to the expense tracker if required conditions are met
+    /// Adds a given transaction to the expense tracker if required conditions are met.
     pub fn add_transaction(&mut self, transaction: Transaction) -> Result<(), Box<dyn Error>> {
         // Only add the transaction if its category is valid
         self.is_transaction_valid(&transaction)?;
@@ -176,7 +176,7 @@ impl ExpenseTracker {
         Ok(())
     }
 
-    // Load transactions from a CSV and generate an expense tracker
+    /// Load transactions from a CSV and generate an expense tracker.
     pub fn load_transactions_from_file(
         &mut self,
         file_path: &PathBuf,
@@ -290,7 +290,7 @@ impl ExpenseTracker {
         Ok(())
     }
 
-    // Load categories and sub-categories from a file
+    /// Loads categories and sub-categories from a file.
     pub fn load_info_from_file(file_path: &str) -> Result<Self, Box<dyn Error>> {
         let file = File::open(file_path)?;
         let reader = std::io::BufReader::new(file);
@@ -298,7 +298,7 @@ impl ExpenseTracker {
         Ok(expense_tracker)
     }
 
-    // Load categories and sub-categories from the transactions part of the expense tracker
+    /// Loads categories and sub-categories from the transactions part of the expense tracker.
     pub fn load_info_from_transactions(&mut self) {
         let cloned_transactions = self.transactions.clone();
         for transaction in cloned_transactions {
@@ -316,7 +316,7 @@ impl ExpenseTracker {
         }
     }
 
-    // Save categories and sub-categories to a file
+    /// Save categories and sub-categories to a file.
     pub fn save_info_to_file(&self, file_path: PathBuf) -> Result<(), Box<dyn Error>> {
         let file = OpenOptions::new()
             .write(true)
