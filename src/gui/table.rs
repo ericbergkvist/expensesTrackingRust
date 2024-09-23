@@ -1,6 +1,7 @@
 // Based on https://github.com/emilk/egui/blob/master/crates/egui_demo_lib/src/demo/table_demo.rs
 
 use expenses_tracking::{expense_tracker::ExpenseTracker, transaction::Transaction};
+use serde_json::error::Category;
 
 use std::{path::PathBuf, str::FromStr};
 
@@ -71,6 +72,18 @@ impl View for TransactionTable {
             });
             reset = ui.button("Reset").clicked();
             load_transactions = ui.button("Load transactions").clicked();
+        });
+
+        let mut filter_category = "Food";
+        ui.horizontal(|ui| {
+            ui.label("Filter");
+            eframe::egui::ComboBox::from_label("Filter by")
+                .selected_text(filter_category)
+                .show_ui(ui, |ui| {
+                    ui.selectable_value(&mut filter_category, "Food", "Food");
+                    ui.selectable_value(&mut filter_category, "Transports", "Transports");
+                    ui.selectable_value(&mut filter_category, "Personal", "Personal");
+                });
         });
 
         if load_transactions {
