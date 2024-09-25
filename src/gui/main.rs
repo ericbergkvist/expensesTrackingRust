@@ -4,7 +4,7 @@ use eframe::egui;
 
 mod table;
 
-use table::{Demo, TransactionTable};
+use table::{TransactionTable, Widget};
 
 fn main() -> Result<(), eframe::Error> {
     env_logger::init(); // Log to stderr (if you run with `RUST_LOG=debug`).

@@ -11,16 +11,11 @@ pub trait View {
 }
 
 /// Something to view
-pub trait Demo {
-    /// Is the demo enabled for this integration?
-    fn is_enabled(&self, _ctx: &eframe::egui::Context) -> bool {
-        true
-    }
-
+pub trait Widget {
     /// `&'static` so we can also use it as a key to store open/close state.
     fn name(&self) -> &'static str;
 
-    /// Show windows, etc
+    /// Shows the state of the window.
     fn show(&mut self, ctx: &eframe::egui::Context, open: &mut bool);
 }
 
@@ -42,7 +37,7 @@ impl Default for TransactionTable {
     }
 }
 
-impl Demo for TransactionTable {
+impl Widget for TransactionTable {
     fn name(&self) -> &'static str {
         "☰ Transactions"
     }
