@@ -5,8 +5,6 @@ use serde_json::error::Category;
 
 use std::{path::PathBuf, str::FromStr};
 
-use log::debug;
-
 /// Something to view in the demo windows
 pub trait View {
     fn ui(&mut self, ui: &mut eframe::egui::Ui);

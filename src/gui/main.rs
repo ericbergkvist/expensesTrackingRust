@@ -35,7 +35,12 @@ impl Default for TransactionTableWindow {
 
 impl eframe::App for TransactionTableWindow {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        //self.ui(ctx);
+        eframe::egui::TopBottomPanel::top("windows_bar").show(ctx, |ui| {
+            eframe::egui::menu::bar(ui, |ui| {
+                ui.toggle_value(&mut self.is_open, self.table.name());
+            });
+        });
+
         self.table.show(ctx, &mut self.is_open);
     }
 }
