@@ -1,7 +1,8 @@
 // Based on https://github.com/emilk/egui/blob/master/crates/egui_demo_lib/src/demo/table_demo.rs
 
 use expenses_tracking::{
-    expense_tracker::ExpenseTracker, transaction::Category, transaction::Transaction,
+    expense_tracker::ExpenseTracker,
+    transaction::{self, Category, Transaction},
 };
 
 use std::{path::PathBuf, str::FromStr};
@@ -72,8 +73,7 @@ impl Widget for TransactionTable {
         });
 
         ui.horizontal(|ui| {
-            ui.label("Filter");
-            eframe::egui::ComboBox::from_label("Filter by")
+            eframe::egui::ComboBox::from_label("Category filter")
                 .selected_text(match &self.transaction_category_filter {
                     CategoryFilter::NoneSelected => "None".to_string(),
                     CategoryFilter::CategorySelected(category) => category.name.clone(),
@@ -164,6 +164,22 @@ impl TransactionTable {
             table.reset();
         }
 
+        let transactions = if self.transaction_category_filter == CategoryFilter::NoneSelected {
+            self.expense_tracker.transactions.clone()
+        } else {
+            self.expense_tracker
+                .transactions
+                .iter()
+                .filter(|transaction| match &self.transaction_category_filter {
+                    CategoryFilter::NoneSelected => true,
+                    CategoryFilter::CategorySelected(category) => {
+                        transaction.category_name.to_lowercase() == category.name
+                    }
+                })
+                .cloned()
+                .collect()
+        };
+
         table
             .header(20.0, |mut header| {
                 header.col(|ui| {
@@ -192,58 +208,54 @@ impl TransactionTable {
                 });
             })
             .body(|body| {
-                body.rows(
-                    text_height,
-                    self.expense_tracker.transactions.len(),
-                    |mut row| {
-                        let row_index = row.index();
-                        let transaction = &self.expense_tracker.transactions[row_index];
-                        let amount = transaction.amount;
-                        let (mut amount_in, mut amount_out) = (0.0, 0.0);
-                        if amount > 0.0 {
-                            amount_in = amount;
-                        } else {
-                            amount_out = -amount;
-                        }
+                body.rows(text_height, transactions.len(), |mut row| {
+                    let row_index = row.index();
+                    let transaction = &transactions[row_index];
+                    let amount = transaction.amount;
+                    let (mut amount_in, mut amount_out) = (0.0, 0.0);
+                    if amount > 0.0 {
+                        amount_in = amount;
+                    } else {
+                        amount_out = -amount;
+                    }
 
-                        row.col(|ui| {
-                            ui.label(row_index.to_string());
-                        });
-                        row.col(|ui| {
-                            ui.label(transaction.date.to_string());
-                        });
-                        row.col(|ui| {
-                            ui.label(amount_out.to_string());
-                        });
-                        row.col(|ui| {
-                            ui.label(amount_in.to_string());
-                        });
-                        row.col(|ui| {
-                            ui.label(transaction.category_name.as_str());
-                        });
-                        row.col(|ui| {
-                            if let Some(subcategory_name) = &transaction.subcategory_name {
-                                ui.label(subcategory_name.as_str());
-                            } else {
-                                ui.label("");
-                            }
-                        });
-                        row.col(|ui| {
-                            if let Some(tag) = &transaction.tag {
-                                ui.label(tag.as_str());
-                            } else {
-                                ui.label("");
-                            }
-                        });
-                        row.col(|ui| {
-                            if let Some(note) = &transaction.note {
-                                ui.label(note.as_str());
-                            } else {
-                                ui.label("");
-                            }
-                        });
-                    },
-                )
+                    row.col(|ui| {
+                        ui.label(row_index.to_string());
+                    });
+                    row.col(|ui| {
+                        ui.label(transaction.date.to_string());
+                    });
+                    row.col(|ui| {
+                        ui.label(amount_out.to_string());
+                    });
+                    row.col(|ui| {
+                        ui.label(amount_in.to_string());
+                    });
+                    row.col(|ui| {
+                        ui.label(transaction.category_name.as_str());
+                    });
+                    row.col(|ui| {
+                        if let Some(subcategory_name) = &transaction.subcategory_name {
+                            ui.label(subcategory_name.as_str());
+                        } else {
+                            ui.label("");
+                        }
+                    });
+                    row.col(|ui| {
+                        if let Some(tag) = &transaction.tag {
+                            ui.label(tag.as_str());
+                        } else {
+                            ui.label("");
+                        }
+                    });
+                    row.col(|ui| {
+                        if let Some(note) = &transaction.note {
+                            ui.label(note.as_str());
+                        } else {
+                            ui.label("");
+                        }
+                    });
+                })
             })
     }
 }
