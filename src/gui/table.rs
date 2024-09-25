@@ -5,18 +5,16 @@ use serde_json::error::Category;
 
 use std::{path::PathBuf, str::FromStr};
 
-/// Something to view in the demo windows
-pub trait View {
-    fn ui(&mut self, ui: &mut eframe::egui::Ui);
-}
-
-/// Something to view
+/// Something to view.
 pub trait Widget {
     /// `&'static` so we can also use it as a key to store open/close state.
     fn name(&self) -> &'static str;
 
-    /// Shows the state of the window.
+    /// Shows the state of the widget.
     fn show(&mut self, ctx: &eframe::egui::Context, open: &mut bool);
+
+    /// What to display in the widget.
+    fn ui(&mut self, ui: &mut eframe::egui::Ui);
 }
 
 /// Shows off a table with dynamic layout
@@ -47,13 +45,10 @@ impl Widget for TransactionTable {
             .open(open)
             .default_width(400.0)
             .show(ctx, |ui| {
-                use View as _;
                 self.ui(ui);
             });
     }
-}
 
-impl View for TransactionTable {
     fn ui(&mut self, ui: &mut eframe::egui::Ui) {
         let mut reset = false;
         let mut load_transactions = false;
