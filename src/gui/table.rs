@@ -31,7 +31,7 @@ pub trait Demo {
 pub struct TransactionTable {
     striped: bool,
     resizable: bool,
-    transactions: Vec<Transaction>,
+    expense_tracker: ExpenseTracker,
 }
 
 impl Default for TransactionTable {
@@ -39,7 +39,7 @@ impl Default for TransactionTable {
         Self {
             striped: true,
             resizable: true,
-            transactions: Vec::new(),
+            expense_tracker: ExpenseTracker::new(),
         }
     }
 }
@@ -99,7 +99,7 @@ impl View for TransactionTable {
                 .load_transactions_from_file(&transactions_file_path, true)
                 .unwrap();
 
-            self.transactions = expense_tracker.transactions;
+            self.expense_tracker.transactions = expense_tracker.transactions;
         }
 
         ui.separator();
@@ -181,54 +181,58 @@ impl TransactionTable {
                 });
             })
             .body(|body| {
-                body.rows(text_height, self.transactions.len(), |mut row| {
-                    let row_index = row.index();
-                    let transaction = &self.transactions[row_index];
-                    let amount = transaction.amount;
-                    let (mut amount_in, mut amount_out) = (0.0, 0.0);
-                    if amount > 0.0 {
-                        amount_in = amount;
-                    } else {
-                        amount_out = -amount;
-                    }
+                body.rows(
+                    text_height,
+                    self.expense_tracker.transactions.len(),
+                    |mut row| {
+                        let row_index = row.index();
+                        let transaction = &self.expense_tracker.transactions[row_index];
+                        let amount = transaction.amount;
+                        let (mut amount_in, mut amount_out) = (0.0, 0.0);
+                        if amount > 0.0 {
+                            amount_in = amount;
+                        } else {
+                            amount_out = -amount;
+                        }
 
-                    row.col(|ui| {
-                        ui.label(row_index.to_string());
-                    });
-                    row.col(|ui| {
-                        ui.label(transaction.date.to_string());
-                    });
-                    row.col(|ui| {
-                        ui.label(amount_out.to_string());
-                    });
-                    row.col(|ui| {
-                        ui.label(amount_in.to_string());
-                    });
-                    row.col(|ui| {
-                        ui.label(transaction.category_name.as_str());
-                    });
-                    row.col(|ui| {
-                        if let Some(subcategory_name) = &transaction.subcategory_name {
-                            ui.label(subcategory_name.as_str());
-                        } else {
-                            ui.label("");
-                        }
-                    });
-                    row.col(|ui| {
-                        if let Some(tag) = &transaction.tag {
-                            ui.label(tag.as_str());
-                        } else {
-                            ui.label("");
-                        }
-                    });
-                    row.col(|ui| {
-                        if let Some(note) = &transaction.note {
-                            ui.label(note.as_str());
-                        } else {
-                            ui.label("");
-                        }
-                    });
-                })
+                        row.col(|ui| {
+                            ui.label(row_index.to_string());
+                        });
+                        row.col(|ui| {
+                            ui.label(transaction.date.to_string());
+                        });
+                        row.col(|ui| {
+                            ui.label(amount_out.to_string());
+                        });
+                        row.col(|ui| {
+                            ui.label(amount_in.to_string());
+                        });
+                        row.col(|ui| {
+                            ui.label(transaction.category_name.as_str());
+                        });
+                        row.col(|ui| {
+                            if let Some(subcategory_name) = &transaction.subcategory_name {
+                                ui.label(subcategory_name.as_str());
+                            } else {
+                                ui.label("");
+                            }
+                        });
+                        row.col(|ui| {
+                            if let Some(tag) = &transaction.tag {
+                                ui.label(tag.as_str());
+                            } else {
+                                ui.label("");
+                            }
+                        });
+                        row.col(|ui| {
+                            if let Some(note) = &transaction.note {
+                                ui.label(note.as_str());
+                            } else {
+                                ui.label("");
+                            }
+                        });
+                    },
+                )
             })
     }
 }

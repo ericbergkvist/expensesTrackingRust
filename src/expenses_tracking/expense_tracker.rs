@@ -9,7 +9,7 @@ use std::fs::{File, OpenOptions};
 use crate::transaction::{AsSubCategory, Category, SubCategory, Transaction};
 
 /// A struct that deals with expense tracking.
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Default)]
 pub struct ExpenseTracker {
     pub valid_categories: BTreeSet<Category>,
     #[serde(skip_serializing)]
@@ -336,6 +336,12 @@ mod tests {
     // Import everything from the parent module
     use super::*;
     use chrono::NaiveDate;
+
+    impl Default for Transaction {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
 
     impl Transaction {
         pub fn new() -> Transaction {
