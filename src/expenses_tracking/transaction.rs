@@ -72,7 +72,7 @@ impl Eq for Category {}
 
 impl Category {
     /// Creates a default `Category` object from a name.
-    fn from_name(name: &str) -> Category {
+    pub fn from_name(name: &str) -> Category {
         Category {
             name: name.to_lowercase(),
             date_added: NaiveDate::default(),

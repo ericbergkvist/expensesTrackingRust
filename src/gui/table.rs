@@ -164,6 +164,7 @@ impl TransactionTable {
             table.reset();
         }
 
+        // TODO: Improve this. It's inefficient to clone all the transactions for each frame...
         let transactions = if self.transaction_category_filter == CategoryFilter::NoneSelected {
             self.expense_tracker.transactions.clone()
         } else {
@@ -173,7 +174,8 @@ impl TransactionTable {
                 .filter(|transaction| match &self.transaction_category_filter {
                     CategoryFilter::NoneSelected => true,
                     CategoryFilter::CategorySelected(category) => {
-                        transaction.category_name.to_lowercase() == category.name
+                        // Check if the transaction has the same category as the filter
+                        &Category::from_name(transaction.category_name.as_str()) == category
                     }
                 })
                 .cloned()
