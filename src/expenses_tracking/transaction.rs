@@ -17,7 +17,7 @@ pub struct Transaction {
 }
 
 impl Transaction {
-    // Creates a transaction from a CSV row
+    /// Creates a transaction from a CSV row.
     pub fn from_csv_row(csv_row: StringRecord) -> Result<Transaction, Box<dyn Error>> {
         // Read all the relevant values in the CSV line
         let date = csv_row.get(0).ok_or("Date not found in the record")?;
@@ -72,7 +72,7 @@ impl Eq for Category {}
 
 impl Category {
     /// Creates a default `Category` object from a name.
-    fn from_name(name: &str) -> Category {
+    pub fn from_name(name: &str) -> Category {
         Category {
             name: name.to_lowercase(),
             date_added: NaiveDate::default(),
