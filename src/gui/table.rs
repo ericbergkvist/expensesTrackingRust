@@ -1,9 +1,6 @@
 // Based on https://github.com/emilk/egui/blob/master/crates/egui_demo_lib/src/demo/table_demo.rs
 
-use expenses_tracking::{
-    expense_tracker::ExpenseTracker,
-    transaction::{self, Category, Transaction},
-};
+use expenses_tracking::{expense_tracker::ExpenseTracker, transaction::Category};
 
 use std::{path::PathBuf, str::FromStr};
 
