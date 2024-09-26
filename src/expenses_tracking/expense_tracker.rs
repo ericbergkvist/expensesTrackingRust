@@ -6,7 +6,7 @@ use std::{collections::BTreeSet, path::PathBuf};
 use serde::{Deserialize, Serialize};
 use std::fs::{File, OpenOptions};
 
-use crate::transaction::{AsSubCategory, Category, SubCategory, Transaction};
+use crate::transaction::{AsSubCategory, Category, SubCategory, Transaction, TransactionCsv};
 
 /// A struct that deals with expense tracking.
 #[derive(Debug, Serialize, Deserialize, Default)]
@@ -182,28 +182,19 @@ impl ExpenseTracker {
         file_path: &PathBuf,
         generate_categories_and_sub: bool,
     ) -> Result<(), Box<dyn Error>> {
-        let mut rdr = csv::Reader::from_path(file_path)
+        let mut rdr = csv::ReaderBuilder::new()
+            .has_headers(true)
+            .from_path(file_path)
             .map_err(|e| format!("Failed to load the CSV of transactions: {e}"))?;
-
-        // Read the header record (first line)
-        if let Ok(header) = rdr.headers() {
-            // Convert the header entries into a Vec<String>
-            let header_list: Vec<String> = header.iter().map(|entry| entry.to_string()).collect();
-
-            // Print the resulting Vec<String>
-            info!("CSV header: {:?}", header_list);
-        } else {
-            eprintln!("CSV file does not have a header row.");
-        }
 
         let mut n_ignored_transactions: i32 = 0;
 
         // Iterate over each record in the CSV file
-        for record in rdr.records() {
-            // Handle each CSV record
-            let csv_row = record?;
-
-            let transaction = Transaction::from_csv_row(csv_row)?;
+        for record in rdr.deserialize() {
+            let transaction_csv: TransactionCsv =
+                record.map_err(|e| format!("Failed to deserialize the CSV transaction: {e}"))?;
+            let transaction = Transaction::try_from(transaction_csv)
+                .map_err(|e| format!("Failed to convert CSV transaction to transaction: {e}"))?;
 
             if generate_categories_and_sub {
                 self.add_category(&transaction.category_name, Some(transaction.date));
@@ -248,8 +239,8 @@ impl ExpenseTracker {
                 "amount_out",
                 "amount_in",
                 "category",
-                "type",
-                "name",
+                "subcategory",
+                "tag",
                 "note",
             ])
             .map_err(|e| format!("Failed to write header to output CSV file: {e}"))?;
