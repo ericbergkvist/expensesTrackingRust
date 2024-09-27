@@ -1,6 +1,5 @@
 use chrono::NaiveDate;
 use core::f32;
-use csv::StringRecord;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use std::error::Error;
@@ -16,39 +15,43 @@ pub struct Transaction {
     pub note: Option<String>,
 }
 
-impl Transaction {
-    /// Creates a transaction from a CSV row.
-    pub fn from_csv_row(csv_row: StringRecord) -> Result<Transaction, Box<dyn Error>> {
-        // Read all the relevant values in the CSV line
-        let date = csv_row.get(0).ok_or("Date not found in the record")?;
-        let amount_out = csv_row.get(1).ok_or("Amount out not found in the record")?;
-        let amount_in = csv_row.get(2).ok_or("Amount in not found in the record")?;
-        let category = csv_row.get(3).ok_or("Category not found in the record")?;
-        let subcategory = csv_row.get(4);
-        let tag = csv_row.get(5);
-        let note = csv_row.get(6);
+#[derive(Debug, Deserialize, PartialEq)]
+pub struct TransactionCsv {
+    date: String,
+    amount_out: String,
+    amount_in: String,
+    category: String,
+    subcategory: String,
+    tag: String,
+    note: String,
+}
 
-        let formatted_date = chrono::NaiveDate::parse_from_str(date, "%d.%m.%Y")?;
-        let parsed_amount_in = parse_amount(amount_in)?;
-        let parsed_amount_out = parse_amount(amount_out)?;
+impl TryFrom<TransactionCsv> for Transaction {
+    type Error = Box<dyn Error>;
 
-        // Turn optional fields from Option<&str> to Option<String>
-        let formatted_subcategory = subcategory.map(|s| s.to_string());
-        let formatted_tag = tag.map(|s| s.to_string());
-        let formatted_note = note.map(|s| s.to_string());
+    fn try_from(transaction_csv: TransactionCsv) -> Result<Self, Self::Error> {
+        let formatted_date =
+            chrono::NaiveDate::parse_from_str(&transaction_csv.date, "%d.%m.%Y")
+                .map_err(|e| format!("Failed to parse date from CSV transaction: {e}"))?;
+        let parsed_amount_in = parse_amount(&transaction_csv.amount_in)
+            .map_err(|e| format!("Failed to parse amount_in from CSV transaction: {e}"))?;
+        let parsed_amount_out = parse_amount(&transaction_csv.amount_out)
+            .map_err(|e| format!("Failed to parse amount_out from CSV transaction: {e}"))?;
 
         let transaction = Transaction {
             date: formatted_date,
             amount: parsed_amount_in - parsed_amount_out,
-            category_name: category.to_string(),
-            subcategory_name: formatted_subcategory,
-            tag: formatted_tag,
-            note: formatted_note,
+            category_name: transaction_csv.category,
+            subcategory_name: string_to_option(transaction_csv.subcategory),
+            tag: string_to_option(transaction_csv.tag),
+            note: string_to_option(transaction_csv.note),
         };
 
         Ok(transaction)
     }
+}
 
+impl Transaction {
     fn to_csv_row() {
         todo!();
     }
@@ -139,14 +142,63 @@ fn parse_amount(amount: &str) -> Result<f32, Box<dyn Error>> {
     Ok(numeric_amount)
 }
 
+fn string_to_option(s: String) -> Option<String> {
+    if s.is_empty() {
+        None
+    } else {
+        Some(s)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use csv::StringRecord;
 
     #[test]
     #[should_panic]
-    fn read_empty_line() {
+    fn deserialize_empty_line() {
         let empty_line = StringRecord::new();
-        Transaction::from_csv_row(empty_line).unwrap();
+        let _transaction_csv: TransactionCsv = empty_line.deserialize(None).unwrap();
     }
+
+    #[test]
+    fn deserialize_transaction() {
+        let transaction_csv = TransactionCsv {
+            date: "01.01.1970".to_string(),
+            amount_out: "30".to_string(),
+            amount_in: "".to_string(),
+            category: "Food".to_string(),
+            subcategory: "".to_string(),
+            tag: "Invited others".to_string(),
+            note: "This is a note".to_string(),
+        };
+
+        // Note that the date is the order of keys is on purpose not the same as in TransactionCsv
+        let header = StringRecord::from(vec![
+            "amount_out",
+            "amount_in",
+            "category",
+            "subcategory",
+            "tag",
+            "date",
+            "note",
+        ]);
+        let transaction_record = StringRecord::from(vec![
+            transaction_csv.amount_out.clone(),
+            transaction_csv.amount_in.clone(),
+            transaction_csv.category.clone(),
+            transaction_csv.subcategory.clone(),
+            transaction_csv.tag.clone(),
+            transaction_csv.date.clone(),
+            transaction_csv.note.clone(),
+        ]);
+
+        let transaction_csv_deserialized: TransactionCsv =
+            transaction_record.deserialize(Some(&header)).unwrap();
+
+        assert_eq!(transaction_csv_deserialized, transaction_csv);
+    }
+
+    // Add tests about conversions from TransactionCsv to Transaction and how it can fail
 }

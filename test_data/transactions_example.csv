@@ -1,4 +1,4 @@
-date,amount_out,amount_in,category,type,name,note
+date,amount_out,amount_in,category,subcategory,tag,note
 03.02.2023,3.90,,Voyages,Nourriture,"Engelberg (Embotech ski event, Feb 2023)",
 03.02.2023,8.00,,Voyages,Nourriture,"Engelberg (Embotech ski event, Feb 2023)",
 03.02.2023,25.00,,Voyages,Nourriture,"Engelberg (Embotech ski event, Feb 2023)",
