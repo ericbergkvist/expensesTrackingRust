@@ -15,7 +15,7 @@ pub struct Transaction {
     pub note: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, PartialEq)]
 pub struct TransactionCsv {
     date: String,
     amount_out: String,
@@ -157,8 +157,48 @@ mod tests {
 
     #[test]
     #[should_panic]
-    fn read_empty_line() {
+    fn deserialize_empty_line() {
         let empty_line = StringRecord::new();
         let _transaction_csv: TransactionCsv = empty_line.deserialize(None).unwrap();
     }
+
+    #[test]
+    fn deserialize_transaction() {
+        let transaction_csv = TransactionCsv {
+            date: "01.01.1970".to_string(),
+            amount_out: "30".to_string(),
+            amount_in: "".to_string(),
+            category: "Food".to_string(),
+            subcategory: "".to_string(),
+            tag: "Invited others".to_string(),
+            note: "This is a note".to_string(),
+        };
+
+        // Note that the date is the order of keys is on purpose not the same as in TransactionCsv
+        let header = StringRecord::from(vec![
+            "amount_out",
+            "amount_in",
+            "category",
+            "subcategory",
+            "tag",
+            "date",
+            "note",
+        ]);
+        let transaction_record = StringRecord::from(vec![
+            transaction_csv.amount_out.clone(),
+            transaction_csv.amount_in.clone(),
+            transaction_csv.category.clone(),
+            transaction_csv.subcategory.clone(),
+            transaction_csv.tag.clone(),
+            transaction_csv.date.clone(),
+            transaction_csv.note.clone(),
+        ]);
+
+        let transaction_csv_deserialized: TransactionCsv =
+            transaction_record.deserialize(Some(&header)).unwrap();
+
+        assert_eq!(transaction_csv_deserialized, transaction_csv);
+    }
+
+    // Add tests about conversions from TransactionCsv to Transaction and how it can fail
 }
