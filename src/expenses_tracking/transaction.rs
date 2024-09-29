@@ -4,17 +4,20 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use std::error::Error;
 
-/// A struct that represents a transaction
+/// Represents a transaction, including a reference to a `Category`
 #[derive(Debug, PartialEq, Clone)]
-pub struct Transaction {
+pub struct Transaction<'a> {
     pub date: NaiveDate,
     pub amount: f32,
-    pub category_name: String,
+    pub category: &'a Category,
     pub subcategory_name: Option<String>,
     pub tag: Option<String>,
     pub note: Option<String>,
 }
 
+/// Version of a transaction containing only `String` objects, which makes it automatically
+/// deserializable by the `csv` crate. Later converted to a `TransactionParsed` and finally a
+/// `Transaction`.
 #[derive(Debug, Deserialize, PartialEq)]
 pub struct TransactionCsv {
     date: String,
@@ -26,7 +29,80 @@ pub struct TransactionCsv {
     note: String,
 }
 
-impl TryFrom<TransactionCsv> for Transaction {
+/// Intermediate state of a transaction before creating a `Transaction` by resolving references to
+/// objects, e.g. `Category`.
+pub struct TransactionParsed {
+    pub date: NaiveDate,
+    pub amount: f32,
+    pub category: String,
+    pub subcategory_name: Option<String>,
+    pub tag: Option<String>,
+    pub note: Option<String>,
+}
+
+impl Transaction<'_> {
+    pub fn from(transaction_parsed: TransactionParsed, category: &Category) -> Transaction {
+        Transaction {
+            date: transaction_parsed.date,
+            amount: transaction_parsed.amount,
+            category,
+            subcategory_name: transaction_parsed.subcategory_name,
+            tag: transaction_parsed.tag,
+            note: transaction_parsed.note,
+        }
+    }
+}
+
+impl TransactionParsed {
+    /// Resolves the references to objects (e.g. `Category`) in a `TransactionParsed` to create a
+    /// `Transaction`, if conditions are met.
+    pub fn resolve_references(
+        self,
+        maybe_category: Option<&Category>,
+    ) -> Result<Transaction, Box<dyn Error>> {
+        match maybe_category {
+            None => Err("Invalid category in transaction".into()),
+            Some(category) => {
+                match self.subcategory_name {
+                    None => {
+                        // The None sub-category is valid as long as its associated category doesn't
+                        // have sub-categories
+                        if category.subcategories.is_empty() {
+                            return Ok(Transaction::from(self, category));
+                        }
+                        Err(
+                            "No sub-category set in transaction although the category has some"
+                                .into(),
+                        )
+                    }
+                    Some(subcategory_name) => {
+                        // The sub-category is valid as long as it's associated with its category
+                        // in the set of valid sub-categories
+                        if category
+                            .subcategories
+                            .contains(&subcategory_name.as_subcategory())
+                        {
+                            return Ok(Transaction::from(self, category));
+                        }
+
+                        // Is the code below redundant with what's above?
+                        if category
+                            .subcategories
+                            .iter()
+                            .any(|subcategory| subcategory.name == subcategory_name.to_lowercase())
+                        {
+                            return Ok(Transaction::from(self, category));
+                        }
+
+                        Err("Sub-category set in transaction does not exist in category".into())
+                    }
+                }
+            }
+        }
+    }
+}
+
+impl TryFrom<TransactionCsv> for TransactionParsed {
     type Error = Box<dyn Error>;
 
     fn try_from(transaction_csv: TransactionCsv) -> Result<Self, Self::Error> {
@@ -38,22 +114,16 @@ impl TryFrom<TransactionCsv> for Transaction {
         let parsed_amount_out = parse_amount(&transaction_csv.amount_out)
             .map_err(|e| format!("Failed to parse amount_out from CSV transaction: {e}"))?;
 
-        let transaction = Transaction {
+        let transaction_parsed = TransactionParsed {
             date: formatted_date,
             amount: parsed_amount_in - parsed_amount_out,
-            category_name: transaction_csv.category,
+            category: transaction_csv.category,
             subcategory_name: string_to_option(transaction_csv.subcategory),
             tag: string_to_option(transaction_csv.tag),
             note: string_to_option(transaction_csv.note),
         };
 
-        Ok(transaction)
-    }
-}
-
-impl Transaction {
-    fn to_csv_row() {
-        todo!();
+        Ok(transaction_parsed)
     }
 }
 
