@@ -155,8 +155,34 @@ impl<'a> ExpenseTracker<'a> {
                 record.map_err(|e| format!("Failed to deserialize CSV transaction: {e}"))?;
             let transaction_parsed = TransactionParsed::try_from(transaction_csv)
                 .map_err(|e| format!("Failed to parse CSV transaction: {e}"))?;
-            if self.handle_transaction(transaction_parsed, generate_categories_and_sub) {
-                n_ignored_transactions += 1;
+
+            if generate_categories_and_sub {
+                self.add_category(&transaction_parsed.category, Some(transaction_parsed.date));
+
+                if let Some(transaction_subcategory) = &transaction_parsed.subcategory_name {
+                    match self.add_subcategory(
+                        &transaction_parsed.category,
+                        transaction_subcategory,
+                        Some(transaction_parsed.date),
+                    ) {
+                        Ok(()) => (),
+                        Err(e) => {
+                            debug!("{}", e);
+                        }
+                    };
+                }
+            }
+
+            let maybe_category = { self.get_category(&transaction_parsed.category) };
+            let maybe_transaction = transaction_parsed.resolve_references(maybe_category);
+            match maybe_transaction {
+                Ok(transaction) => {
+                    self.add_transaction(transaction);
+                }
+                Err(e) => {
+                    trace!("{}", e);
+                    n_ignored_transactions += 1;
+                }
             }
         }
 
