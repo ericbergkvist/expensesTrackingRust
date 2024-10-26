@@ -3,13 +3,14 @@ use core::f32;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use std::error::Error;
+use std::rc::Rc;
 
 /// Represents a transaction, including a reference to a `Category`
 #[derive(Debug, PartialEq, Clone)]
-pub struct Transaction<'a> {
+pub struct Transaction {
     pub date: NaiveDate,
     pub amount: f32,
-    pub category: &'a Category,
+    pub category: Rc<Category>,
     pub subcategory_name: Option<String>,
     pub tag: Option<String>,
     pub note: Option<String>,
@@ -40,8 +41,8 @@ pub struct TransactionParsed {
     pub note: Option<String>,
 }
 
-impl Transaction<'_> {
-    pub fn from(transaction_parsed: TransactionParsed, category: &Category) -> Transaction {
+impl Transaction {
+    pub fn from(transaction_parsed: TransactionParsed, category: Rc<Category>) -> Transaction {
         Transaction {
             date: transaction_parsed.date,
             amount: transaction_parsed.amount,
@@ -58,7 +59,7 @@ impl TransactionParsed {
     /// `Transaction`, if conditions are met.
     pub fn resolve_references(
         self,
-        maybe_category: Option<&Category>,
+        maybe_category: Option<Rc<Category>>,
     ) -> Result<Transaction, Box<dyn Error>> {
         match maybe_category {
             None => Err("Invalid category in transaction".into()),
@@ -269,6 +270,4 @@ mod tests {
 
         assert_eq!(transaction_csv_deserialized, transaction_csv);
     }
-
-    // Add tests about conversions from TransactionCsv to Transaction and how it can fail
 }
