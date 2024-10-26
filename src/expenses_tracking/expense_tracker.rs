@@ -195,43 +195,6 @@ impl<'a> ExpenseTracker<'a> {
         Ok(())
     }
 
-    fn handle_transaction(
-        &'a mut self,
-        transaction_parsed: TransactionParsed,
-        generate_categories_and_sub: bool,
-    ) -> bool {
-        if generate_categories_and_sub {
-            self.add_category(&transaction_parsed.category, Some(transaction_parsed.date));
-
-            if let Some(transaction_subcategory) = &transaction_parsed.subcategory_name {
-                match self.add_subcategory(
-                    &transaction_parsed.category,
-                    transaction_subcategory,
-                    Some(transaction_parsed.date),
-                ) {
-                    Ok(()) => true,
-                    Err(e) => {
-                        debug!("{}", e);
-                        false
-                    }
-                };
-            }
-        }
-
-        let maybe_category = { self.get_category(&transaction_parsed.category) };
-        let maybe_transaction = transaction_parsed.resolve_references(maybe_category);
-        match maybe_transaction {
-            Ok(transaction) => {
-                self.add_transaction(transaction);
-                true
-            }
-            Err(e) => {
-                trace!("{}", e);
-                false
-            }
-        }
-    }
-
     pub fn write_transactions_to_file(&self, output_path: &PathBuf) -> Result<(), Box<dyn Error>> {
         let mut writer = csv::Writer::from_path(output_path)
             .map_err(|e| format!("Failed to open output CSV file: {e}"))?;
