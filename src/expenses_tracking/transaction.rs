@@ -5,13 +5,14 @@ use std::collections::BTreeSet;
 use std::error::Error;
 use std::rc::Rc;
 
-/// Represents a transaction, including a reference to a `Category`
+/// Represents a transaction, including a reference to a `Category` and optionally one to a
+/// `SubCategory`.
 #[derive(Debug, PartialEq, Clone)]
 pub struct Transaction {
     pub date: NaiveDate,
     pub amount: f32,
     pub category: Rc<Category>,
-    pub subcategory_name: Option<String>,
+    pub subcategory: Option<Rc<SubCategory>>,
     pub tag: Option<String>,
     pub note: Option<String>,
 }
@@ -42,63 +43,18 @@ pub struct TransactionParsed {
 }
 
 impl Transaction {
-    pub fn from(transaction_parsed: TransactionParsed, category: Rc<Category>) -> Transaction {
+    pub fn from(
+        transaction_parsed: TransactionParsed,
+        category: Rc<Category>,
+        subcategory: Option<Rc<SubCategory>>,
+    ) -> Transaction {
         Transaction {
             date: transaction_parsed.date,
             amount: transaction_parsed.amount,
             category,
-            subcategory_name: transaction_parsed.subcategory_name,
+            subcategory,
             tag: transaction_parsed.tag,
             note: transaction_parsed.note,
-        }
-    }
-}
-
-impl TransactionParsed {
-    /// Resolves the references to objects (e.g. `Category`) in a `TransactionParsed` to create a
-    /// `Transaction`, if conditions are met.
-    pub fn resolve_references(
-        self,
-        maybe_category: Option<Rc<Category>>,
-    ) -> Result<Transaction, Box<dyn Error>> {
-        match maybe_category {
-            None => Err("Invalid category in transaction".into()),
-            Some(category) => {
-                match self.subcategory_name {
-                    None => {
-                        // The None sub-category is valid as long as its associated category doesn't
-                        // have sub-categories
-                        if category.subcategories.is_empty() {
-                            return Ok(Transaction::from(self, category));
-                        }
-                        Err(
-                            "No sub-category set in transaction although the category has some"
-                                .into(),
-                        )
-                    }
-                    Some(subcategory_name) => {
-                        // The sub-category is valid as long as it's associated with its category
-                        // in the set of valid sub-categories
-                        if category
-                            .subcategories
-                            .contains(&subcategory_name.as_subcategory())
-                        {
-                            return Ok(Transaction::from(self, category));
-                        }
-
-                        // Is the code below redundant with what's above?
-                        if category
-                            .subcategories
-                            .iter()
-                            .any(|subcategory| subcategory.name == subcategory_name.to_lowercase())
-                        {
-                            return Ok(Transaction::from(self, category));
-                        }
-
-                        Err("Sub-category set in transaction does not exist in category".into())
-                    }
-                }
-            }
         }
     }
 }
@@ -131,7 +87,7 @@ impl TryFrom<TransactionCsv> for TransactionParsed {
 #[derive(Debug, Clone, Serialize, Deserialize, Ord, PartialOrd)]
 pub struct Category {
     pub name: String,
-    pub subcategories: BTreeSet<SubCategory>,
+    pub subcategories: BTreeSet<Rc<SubCategory>>,
     pub date_added: NaiveDate,
 }
 
