@@ -3,18 +3,23 @@ use core::f32;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
 use std::error::Error;
+use std::rc::Rc;
 
-/// A struct that represents a transaction
+/// Represents a transaction, including a reference to a `Category` and optionally one to a
+/// `SubCategory`.
 #[derive(Debug, PartialEq, Clone)]
 pub struct Transaction {
     pub date: NaiveDate,
     pub amount: f32,
-    pub category_name: String,
-    pub subcategory_name: Option<String>,
+    pub category: Rc<Category>,
+    pub subcategory: Option<Rc<SubCategory>>,
     pub tag: Option<String>,
     pub note: Option<String>,
 }
 
+/// Version of a transaction containing only `String` objects, which makes it automatically
+/// deserializable by the `csv` crate. Later converted to a `TransactionParsed` and finally a
+/// `Transaction`.
 #[derive(Debug, Deserialize, PartialEq)]
 pub struct TransactionCsv {
     date: String,
@@ -26,7 +31,35 @@ pub struct TransactionCsv {
     note: String,
 }
 
-impl TryFrom<TransactionCsv> for Transaction {
+/// Intermediate state of a transaction before creating a `Transaction` by resolving references to
+/// objects, e.g. `Category`.
+pub struct TransactionParsed {
+    pub date: NaiveDate,
+    pub amount: f32,
+    pub category: String,
+    pub subcategory_name: Option<String>,
+    pub tag: Option<String>,
+    pub note: Option<String>,
+}
+
+impl Transaction {
+    pub fn from(
+        transaction_parsed: TransactionParsed,
+        category: Rc<Category>,
+        subcategory: Option<Rc<SubCategory>>,
+    ) -> Transaction {
+        Transaction {
+            date: transaction_parsed.date,
+            amount: transaction_parsed.amount,
+            category,
+            subcategory,
+            tag: transaction_parsed.tag,
+            note: transaction_parsed.note,
+        }
+    }
+}
+
+impl TryFrom<TransactionCsv> for TransactionParsed {
     type Error = Box<dyn Error>;
 
     fn try_from(transaction_csv: TransactionCsv) -> Result<Self, Self::Error> {
@@ -38,29 +71,23 @@ impl TryFrom<TransactionCsv> for Transaction {
         let parsed_amount_out = parse_amount(&transaction_csv.amount_out)
             .map_err(|e| format!("Failed to parse amount_out from CSV transaction: {e}"))?;
 
-        let transaction = Transaction {
+        let transaction_parsed = TransactionParsed {
             date: formatted_date,
             amount: parsed_amount_in - parsed_amount_out,
-            category_name: transaction_csv.category,
+            category: transaction_csv.category,
             subcategory_name: string_to_option(transaction_csv.subcategory),
             tag: string_to_option(transaction_csv.tag),
             note: string_to_option(transaction_csv.note),
         };
 
-        Ok(transaction)
-    }
-}
-
-impl Transaction {
-    fn to_csv_row() {
-        todo!();
+        Ok(transaction_parsed)
     }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, Ord, PartialOrd)]
 pub struct Category {
     pub name: String,
-    pub subcategories: BTreeSet<SubCategory>,
+    pub subcategories: BTreeSet<Rc<SubCategory>>,
     pub date_added: NaiveDate,
 }
 
@@ -199,6 +226,4 @@ mod tests {
 
         assert_eq!(transaction_csv_deserialized, transaction_csv);
     }
-
-    // Add tests about conversions from TransactionCsv to Transaction and how it can fail
 }

@@ -1,17 +1,20 @@
 use chrono::NaiveDate;
 use log::{debug, info, trace};
 use std::error::Error;
+use std::rc::Rc;
 use std::{collections::BTreeSet, path::PathBuf};
 
 use serde::{Deserialize, Serialize};
 use std::fs::{File, OpenOptions};
 
-use crate::transaction::{AsSubCategory, Category, SubCategory, Transaction, TransactionCsv};
+use crate::transaction::{
+    AsSubCategory, Category, SubCategory, Transaction, TransactionCsv, TransactionParsed,
+};
 
 /// A struct that deals with expense tracking.
 #[derive(Debug, Serialize, Deserialize, Default)]
 pub struct ExpenseTracker {
-    pub valid_categories: BTreeSet<Category>,
+    pub valid_categories: BTreeSet<Rc<Category>>,
     #[serde(skip_serializing)]
     #[serde(skip_deserializing)]
     pub transactions: Vec<Transaction>,
@@ -27,24 +30,74 @@ impl ExpenseTracker {
     }
 
     /// Returns an `Option` which contains a reference to a `Category` if it matches the argument.
-    pub fn get_category(&self, category_name: &str) -> Option<&Category> {
+    pub fn get_category(&self, category_name: &str) -> Option<Rc<Category>> {
         self.valid_categories
             .iter()
             .find(|category| category.name == category_name.to_lowercase())
+            .cloned()
     }
 
-    /// Returns an `Option` which contains a reference to a `SubCategory` if it matches the argument.
+    /// Returns an `Option` which contains a reference to a `SubCategory` if it matches the
+    /// argument.
     pub fn get_subcategory(
         &self,
+        category: Rc<Category>,
         subcategory_name: &str,
-        category_name: &str,
-    ) -> Option<&SubCategory> {
-        match self.get_category(category_name) {
-            Some(category) => category
-                .subcategories
-                .iter()
-                .find(|subcategory| subcategory.name == subcategory_name.to_lowercase()),
-            None => None,
+    ) -> Option<Rc<SubCategory>> {
+        category
+            .subcategories
+            .iter()
+            .find(|subcategory| subcategory.name == subcategory_name.to_lowercase())
+            .cloned()
+    }
+
+    /// Resolves the references to objects (i.e. `Category` and `SubCategory`) in a
+    /// `TransactionParsed` to create a `Transaction`, if conditions are met.
+    pub fn resolve_references(
+        &self,
+        transaction_parsed: TransactionParsed,
+    ) -> Result<Transaction, Box<dyn Error>> {
+        let maybe_category = { self.get_category(&transaction_parsed.category) };
+        match maybe_category {
+            None => Err("Invalid category in transaction".into()),
+            Some(category) => {
+                match &transaction_parsed.subcategory_name {
+                    None => {
+                        // The None sub-category is valid as long as its associated category doesn't
+                        // have sub-categories
+                        if category.subcategories.is_empty() {
+                            return Ok(Transaction::from(
+                                transaction_parsed,
+                                Rc::clone(&category),
+                                None,
+                            ));
+                        }
+                        Err(
+                            "No sub-category set in transaction although the category has some"
+                                .into(),
+                        )
+                    }
+                    Some(subcategory_name) => {
+                        // The sub-category is valid as long as it's associated with its category
+                        // in the set of valid sub-categories
+                        let maybe_subcategory =
+                            self.get_subcategory(Rc::clone(&category), subcategory_name);
+                        match maybe_subcategory {
+                            Some(subcategory) => {
+                                return Ok(Transaction::from(
+                                    transaction_parsed,
+                                    Rc::clone(&category),
+                                    Some(Rc::clone(&subcategory)),
+                                ))
+                            }
+                            None => {
+                                Err("Sub-category set in transaction does not exist in category"
+                                    .into())
+                            }
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -65,12 +118,12 @@ impl ExpenseTracker {
             None => chrono::prelude::Local::now().naive_local().into(),
         };
 
-        let new_category = Category {
+        let new_category = Rc::new(Category {
             // All category names are lower case to avoid any confusion
             name: category_name.to_lowercase(),
             date_added: category_date,
             subcategories: BTreeSet::new(),
-        };
+        });
         self.valid_categories.insert(new_category)
     }
 
@@ -82,18 +135,15 @@ impl ExpenseTracker {
         subcategory_name: &str,
         date_creation: Option<NaiveDate>,
     ) -> Result<(), Box<dyn Error>> {
-        // We will need to clone the category in some cases
-        let cloned_category: Category;
-
-        match self.get_category(category_name) {
-            Some(category) => cloned_category = category.clone(),
+        let category = match self.get_category(category_name) {
+            Some(category) => Rc::clone(&category),
             None => {
                 return Err("Sub-category cannot be added because its category is invalid".into())
             }
-        }
+        };
 
         if self
-            .get_subcategory(subcategory_name, category_name)
+            .get_subcategory(Rc::clone(&category), subcategory_name)
             .is_some()
         {
             return Err("The subcategory name already exists".into());
@@ -104,7 +154,7 @@ impl ExpenseTracker {
         // the `Category` object, modify it, and insert it again
 
         // Safe to unwrap because the category exists if the code arrives here
-        let mut extracted_category = self.valid_categories.take(&cloned_category).unwrap();
+        let mut extracted_category = self.valid_categories.take(&category).unwrap();
 
         let subcategory_date: NaiveDate = match date_creation {
             Some(date) => date,
@@ -112,10 +162,10 @@ impl ExpenseTracker {
             None => chrono::prelude::Local::now().naive_local().into(),
         };
 
-        let new_subcategory = SubCategory {
+        let new_subcategory = Rc::new(SubCategory {
             name: subcategory_name.to_lowercase(),
             date_added: subcategory_date,
-        };
+        });
 
         extracted_category.subcategories.insert(new_subcategory);
 
@@ -124,59 +174,7 @@ impl ExpenseTracker {
         Ok(())
     }
 
-    /// Checks if a transaction is valid.
-    pub fn is_transaction_valid(&self, transaction: &Transaction) -> Result<(), Box<dyn Error>> {
-        let maybe_category = self.get_category(&transaction.category_name);
-        match maybe_category {
-            None => Err("Invalid category in transaction".into()),
-            Some(category) => {
-                match &transaction.subcategory_name {
-                    None => {
-                        // The None sub-category is valid as long as its associated category doesn't
-                        // have sub-categories
-                        if category.subcategories.is_empty() {
-                            return Ok(());
-                        }
-                        Err(
-                            "No sub-category set in transaction although the category has some"
-                                .into(),
-                        )
-                    }
-                    Some(subcategory_name) => {
-                        // The sub-category is valid as long as it's associated with its category
-                        // in the set of valid sub-categories
-                        if category
-                            .subcategories
-                            .contains(&subcategory_name.as_subcategory())
-                        {
-                            return Ok(());
-                        }
-
-                        if category
-                            .subcategories
-                            .iter()
-                            .any(|subcategory| subcategory.name == subcategory_name.to_lowercase())
-                        {
-                            return Ok(());
-                        }
-
-                        Err("Sub-category set in transaction does not exist in category".into())
-                    }
-                }
-            }
-        }
-    }
-
-    /// Adds a given transaction to the expense tracker if required conditions are met.
-    pub fn add_transaction(&mut self, transaction: Transaction) -> Result<(), Box<dyn Error>> {
-        // Only add the transaction if its category is valid
-        self.is_transaction_valid(&transaction)?;
-
-        self.transactions.push(transaction);
-        Ok(())
-    }
-
-    /// Load transactions from a CSV and generate an expense tracker.
+    /// Load transactions from a CSV.
     pub fn load_transactions_from_file(
         &mut self,
         file_path: &PathBuf,
@@ -192,32 +190,37 @@ impl ExpenseTracker {
         // Iterate over each record in the CSV file
         for record in rdr.deserialize() {
             let transaction_csv: TransactionCsv =
-                record.map_err(|e| format!("Failed to deserialize the CSV transaction: {e}"))?;
-            let transaction = Transaction::try_from(transaction_csv)
-                .map_err(|e| format!("Failed to convert CSV transaction to transaction: {e}"))?;
+                record.map_err(|e| format!("Failed to deserialize CSV transaction: {e}"))?;
+            let transaction_parsed = TransactionParsed::try_from(transaction_csv)
+                .map_err(|e| format!("Failed to parse CSV transaction: {e}"))?;
 
             if generate_categories_and_sub {
-                self.add_category(&transaction.category_name, Some(transaction.date));
+                self.add_category(&transaction_parsed.category, Some(transaction_parsed.date));
 
-                if let Some(transaction_subcategory) = &transaction.subcategory_name {
+                if let Some(transaction_subcategory) = &transaction_parsed.subcategory_name {
                     match self.add_subcategory(
-                        &transaction.category_name,
+                        &transaction_parsed.category,
                         transaction_subcategory,
-                        Some(transaction.date),
+                        Some(transaction_parsed.date),
                     ) {
                         Ok(()) => (),
-                        Err(e) => debug!("{}", e),
+                        Err(e) => {
+                            debug!("{}", e);
+                        }
                     };
                 }
             }
 
-            match self.add_transaction(transaction) {
-                Ok(()) => (),
+            let maybe_transaction = self.resolve_references(transaction_parsed);
+            match maybe_transaction {
+                Ok(transaction) => {
+                    self.transactions.push(transaction);
+                }
                 Err(e) => {
                     trace!("{}", e);
                     n_ignored_transactions += 1;
                 }
-            };
+            }
         }
 
         info!(
@@ -256,21 +259,22 @@ impl ExpenseTracker {
             } else {
                 String::new()
             };
+            let subcategory_name = match transaction.subcategory {
+                Some(subcategory) => subcategory.name,
+                None => "".to_string(),
+            };
 
             writer
                 .write_record(&[
                     transaction.date.format("%d.%m.%Y").to_string(),
                     amount_out,
                     amount_in,
-                    transaction.category_name.clone(),
-                    transaction
-                        .subcategory_name
-                        .clone()
-                        .unwrap_or("".to_string()),
+                    transaction.category.name,
+                    subcategory_name,
                     transaction.tag.clone().unwrap_or("".to_string()),
                     transaction.note.clone().unwrap_or("".to_string()),
                 ])
-                .map_err(|e| format!("Failed to write a transaction to output CSV file: {e}"))?;
+                .map_err(|e| format!("Failed to write transaction to output CSV file: {e}"))?;
         }
 
         // Flush the writer to make sure all data is written to the file
@@ -287,24 +291,6 @@ impl ExpenseTracker {
         let reader = std::io::BufReader::new(file);
         let expense_tracker: ExpenseTracker = serde_json::from_reader(reader)?;
         Ok(expense_tracker)
-    }
-
-    /// Loads categories and sub-categories from the transactions part of the expense tracker.
-    pub fn load_info_from_transactions(&mut self) {
-        let cloned_transactions = self.transactions.clone();
-        for transaction in cloned_transactions {
-            self.add_category(&transaction.category_name, Some(transaction.date));
-            if let Some(transaction_subcategory) = &transaction.subcategory_name {
-                // We can directly unwrap this function because we just made the category of the
-                // transaction valid, meaning that this should not error
-                self.add_subcategory(
-                    &transaction.category_name,
-                    transaction_subcategory,
-                    Some(transaction.date),
-                )
-                .unwrap();
-            }
-        }
     }
 
     /// Save categories and sub-categories to a file.
